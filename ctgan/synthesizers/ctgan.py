@@ -9,9 +9,12 @@ from torch import optim
 from torch.nn import BatchNorm1d, Dropout, LeakyReLU, Linear, Module, ReLU, Sequential, functional
 from tqdm import tqdm
 
+from discr_ensemble import DiscriminatorEnsemble
+
 from ctgan.data_sampler import DataSampler
 from ctgan.data_transformer import DataTransformer
 from ctgan.synthesizers.base import BaseSynthesizer, random_state
+from ctgan.reporter import CTGANReporter
 
 
 class Discriminator(Module):
@@ -95,7 +98,6 @@ class Generator(Module):
         data = self.seq(input_)
         return data
 
-
 class CTGAN(BaseSynthesizer):
     """Conditional Table GAN Synthesizer.
 
@@ -141,6 +143,30 @@ class CTGAN(BaseSynthesizer):
             Whether to attempt to use cuda for GPU computation.
             If this is False or CUDA is not available, CPU will be used.
             Defaults to ``True``.
+        ensemble (bool):
+            Whether a discriminator ensemble should be used.
+            Defaults to ``False``.
+        ens_multiplier (int):
+            Number of Discriminators used for the Ensemble
+            Defaults to ``1``.
+        ens_weighting (str):
+            Weighting Method among Discriminator used for Generator Training.
+            Defaults to ``ew``.
+        ens_fixed_weights (list(float)):
+            List of weights used for fixed weights as a list of floats.
+            Only used when ``ens_weighting`` equals ``fixed``
+            Defaults to ``None``.
+        ens_split_batch (bool):
+            Wether Batch is splitted among Discriminators
+            Note, that when True, batchsize must be divisble by ens_multiplier.
+            Defaults to ``False``.
+        ens_grad_norm (bool):
+            Wether to use Gradient Normalization among Discriminators.
+            Defaults to ``False``.
+        save_sample_gradients (bool):
+            Wether to use Gradient Normalization among Discriminators.
+            Defaults to ``False``.
+
     """
 
     def __init__(
@@ -159,6 +185,14 @@ class CTGAN(BaseSynthesizer):
         epochs=300,
         pac=10,
         cuda=True,
+        ensemble=False,
+        ens_multiplier=1,
+        ens_weighting='ew',
+        ens_fixed_weights: list[float] = None,
+        ens_split_batch=False,
+        ens_grad_norm=False,
+        save_sample_gradients=False,
+        exp_name="CTGAN_experiment"
     ):
         assert batch_size % 2 == 0
 
@@ -178,6 +212,17 @@ class CTGAN(BaseSynthesizer):
         self._epochs = epochs
         self.pac = pac
 
+        self._ensemble = ensemble
+        self._ens_multiplier = ens_multiplier
+        self._ens_weighting = ens_weighting
+        self._ens_fixed_weights = ens_fixed_weights
+        self._ens_split_batch = ens_split_batch
+        self._ens_grad_norm = ens_grad_norm
+
+        self._save_sample_gradients = save_sample_gradients
+
+        self._exp_name = exp_name
+
         if not cuda or not torch.cuda.is_available():
             device = 'cpu'
         elif isinstance(cuda, str):
@@ -191,6 +236,8 @@ class CTGAN(BaseSynthesizer):
         self._data_sampler = None
         self._generator = None
         self.loss_values = None
+
+        self.reporter = CTGANReporter(run_name=exp_name)
 
     @staticmethod
     def _gumbel_softmax(logits, tau=1, hard=False, eps=1e-10, dim=-1):
@@ -290,7 +337,7 @@ class CTGAN(BaseSynthesizer):
             raise ValueError(f'Invalid columns found: {invalid_columns}')
 
     @random_state
-    def fit(self, train_data, discrete_columns=(), epochs=None):
+    def fit(self, train_data, discrete_columns=(), epochs=None, test_data=None, metadata=None):
         """Fit the CTGAN Synthesizer models to the training data.
 
         Args:
@@ -330,9 +377,25 @@ class CTGAN(BaseSynthesizer):
             self._embedding_dim + self._data_sampler.dim_cond_vec(), self._generator_dim, data_dim
         ).to(self._device)
 
-        discriminator = Discriminator(
-            data_dim + self._data_sampler.dim_cond_vec(), self._discriminator_dim, pac=self.pac
-        ).to(self._device)
+        if self._ensemble is True:
+            discriminator = DiscriminatorEnsemble(
+                discr_class=Discriminator,
+                multiplier=self._ens_multiplier,
+                weighting=self._ens_weighting,
+                fixed_weights=self._ens_fixed_weights,
+                split_batch=self._ens_split_batch,
+                grad_norm=self._ens_grad_norm,
+                config=None,
+                input_dim=data_dim + self._data_sampler.dim_cond_vec(),
+                discriminator_dim=self._discriminator_dim,
+                pac=self.pac,
+            )
+            discr_list = discriminator.discriminators
+        else:
+            discriminator = Discriminator(
+                data_dim + self._data_sampler.dim_cond_vec(), self._discriminator_dim, pac=self.pac
+            ).to(self._device)
+            discr_list = [discriminator]
 
         optimizerG = optim.Adam(
             self._generator.parameters(),
@@ -361,53 +424,56 @@ class CTGAN(BaseSynthesizer):
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
         for i in epoch_iterator:
             for id_ in range(steps_per_epoch):
+                #train Discriminator(s)
                 for n in range(self._discriminator_steps):
-                    fakez = torch.normal(mean=mean, std=std)
+                    for current_discriminator in discr_list:
+                        fakez = torch.normal(mean=mean, std=std)
 
-                    condvec = self._data_sampler.sample_condvec(self._batch_size)
-                    if condvec is None:
-                        c1, m1, col, opt = None, None, None, None
-                        real = self._data_sampler.sample_data(
-                            train_data, self._batch_size, col, opt
+                        condvec = self._data_sampler.sample_condvec(self._batch_size)
+                        if condvec is None:
+                            c1, m1, col, opt = None, None, None, None
+                            real = self._data_sampler.sample_data(
+                                train_data, self._batch_size, col, opt
+                            )
+                        else:
+                            c1, m1, col, opt = condvec
+                            c1 = torch.from_numpy(c1).to(self._device)
+                            m1 = torch.from_numpy(m1).to(self._device)
+                            fakez = torch.cat([fakez, c1], dim=1)
+
+                            perm = np.arange(self._batch_size)
+                            np.random.shuffle(perm)
+                            real = self._data_sampler.sample_data(
+                                train_data, self._batch_size, col[perm], opt[perm]
+                            )
+                            c2 = c1[perm]
+
+                        fake = self._generator(fakez)
+                        fakeact = self._apply_activate(fake)
+
+                        real = torch.from_numpy(real.astype('float32')).to(self._device)
+
+                        if c1 is not None:
+                            fake_cat = torch.cat([fakeact, c1], dim=1)
+                            real_cat = torch.cat([real, c2], dim=1)
+                        else:
+                            real_cat = real
+                            fake_cat = fakeact
+
+                        y_fake = current_discriminator(fake_cat)
+                        y_real = current_discriminator(real_cat)
+
+                        pen = current_discriminator.calc_gradient_penalty(
+                            real_cat, fake_cat, self._device, self.pac
                         )
-                    else:
-                        c1, m1, col, opt = condvec
-                        c1 = torch.from_numpy(c1).to(self._device)
-                        m1 = torch.from_numpy(m1).to(self._device)
-                        fakez = torch.cat([fakez, c1], dim=1)
+                        loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
 
-                        perm = np.arange(self._batch_size)
-                        np.random.shuffle(perm)
-                        real = self._data_sampler.sample_data(
-                            train_data, self._batch_size, col[perm], opt[perm]
-                        )
-                        c2 = c1[perm]
+                        optimizerD.zero_grad(set_to_none=False)
+                        pen.backward(retain_graph=True)
+                        loss_d.backward()
+                        optimizerD.step()
 
-                    fake = self._generator(fakez)
-                    fakeact = self._apply_activate(fake)
-
-                    real = torch.from_numpy(real.astype('float32')).to(self._device)
-
-                    if c1 is not None:
-                        fake_cat = torch.cat([fakeact, c1], dim=1)
-                        real_cat = torch.cat([real, c2], dim=1)
-                    else:
-                        real_cat = real
-                        fake_cat = fakeact
-
-                    y_fake = discriminator(fake_cat)
-                    y_real = discriminator(real_cat)
-
-                    pen = discriminator.calc_gradient_penalty(
-                        real_cat, fake_cat, self._device, self.pac
-                    )
-                    loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
-
-                    optimizerD.zero_grad(set_to_none=False)
-                    pen.backward(retain_graph=True)
-                    loss_d.backward()
-                    optimizerD.step()
-
+                # train Generator
                 fakez = torch.normal(mean=mean, std=std)
                 condvec = self._data_sampler.sample_condvec(self._batch_size)
 
@@ -438,6 +504,8 @@ class CTGAN(BaseSynthesizer):
                 loss_g.backward()
                 optimizerG.step()
 
+                self.reporter.reportTrainstep(loss_d, loss_g, i*steps_per_epoch+id_)
+
             generator_loss = loss_g.detach().cpu().item()
             discriminator_loss = loss_d.detach().cpu().item()
 
@@ -458,8 +526,32 @@ class CTGAN(BaseSynthesizer):
                     description.format(gen=generator_loss, dis=discriminator_loss)
                 )
 
+            ##############################
+            # Evaluate Generated Dataset #
+            ##############################
+
+            pruned_sample_size = (test_data.shape[0] // self.pac) * self.pac
+            fake_data, cond = self.sample(pruned_sample_size, raw_format=True)
+
+            if self._save_sample_gradients and i % 20 == 0:
+                discr_input = np.concatenate([fake_data, cond], axis=1)[:self._batch_size*10]
+                self.reporter.evaluateEnsemble(discr_input, discriminator, epoch=i)
+
+            fake_data = self._transformer.inverse_transform(fake_data)
+
+            self.reporter.reportValidation(fake_data,
+                                           test_data[:pruned_sample_size],
+                                           metadata,
+                                           #discriminator(torch.tensor(self._transformer.transform(test_data))[:pruned_sample_size]),
+                                           #discriminator(torch.tensor(self._transformer.transform(fake_data))),
+                                           i*steps_per_epoch+id_)
+
+
+
+
+
     @random_state
-    def sample(self, n, condition_column=None, condition_value=None):
+    def sample(self, n, condition_column=None, condition_value=None, raw_format=False):
         """Sample data similar to the training data.
 
         Choosing a condition_column and condition_value will increase the probability of the
@@ -489,6 +581,7 @@ class CTGAN(BaseSynthesizer):
 
         steps = n // self._batch_size + 1
         data = []
+        cond = []
         for i in range(steps):
             mean = torch.zeros(self._batch_size, self._embedding_dim)
             std = mean + 1
@@ -509,14 +602,22 @@ class CTGAN(BaseSynthesizer):
             fake = self._generator(fakez)
             fakeact = self._apply_activate(fake)
             data.append(fakeact.detach().cpu().numpy())
+            cond.append(condvec)
 
         data = np.concatenate(data, axis=0)
+        cond = np.concatenate(cond, axis=0)
         data = data[:n]
+        cond = cond[:n]
 
-        return self._transformer.inverse_transform(data)
+        if not raw_format:
+            data = self._transformer.inverse_transform(data)
+        else:
+            data = data, cond
+
+        return data
 
     def set_device(self, device):
-        """Set the `device` to be used ('GPU' or 'CPU)."""
+        """Set the `device` to be used ('GPU' or 'CPU')."""
         self._device = device
         if self._generator is not None:
             self._generator.to(self._device)

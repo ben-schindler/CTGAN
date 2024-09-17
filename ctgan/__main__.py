@@ -1,6 +1,10 @@
 """CLI."""
 
 import argparse
+import datetime
+import os
+import os.path as path
+import json
 
 from ctgan.data import read_csv, read_tsv, write_tsv
 from ctgan.synthesizers.ctgan import CTGAN
@@ -84,6 +88,66 @@ def _parse_args():
     parser.add_argument('data', help='Path to training data')
     parser.add_argument('output', help='Path of the output file')
 
+    ## Logger:
+    parser.add_argument(
+        "--add_time_to_exp",
+        action="store_true",
+        default=False,
+        help="Add time to experiment name and output file",
+    )
+
+    ## Ensemble Arguments:
+
+    parser.add_argument(
+        '--ensemble',
+        default=False,
+        type=bool,
+        help='Whether a discriminator ensemble should be used. Defaults to False.'
+    )
+
+    parser.add_argument(
+        '--ens_multiplier',
+        default=1,
+        type=int,
+        help='Number of Discriminators used for the Ensemble. Defaults to 1.'
+    )
+
+    parser.add_argument(
+        '--ens_weighting',
+        default='ew',
+        type=str,
+        help='Weighting Method among Discriminator used for Generator Training. Defaults to "ew".'
+    )
+
+    parser.add_argument(
+        '--ens_fixed_weights',
+        nargs='*',
+        type=float,
+        default=None,
+        help='List of weights used for fixed weights as a list of floats. Only used when ens_weighting equals "fixed". Defaults to None.'
+    )
+
+    parser.add_argument(
+        '--ens_split_batch',
+        default=False,
+        type=bool,
+        help='Whether Batch is split among Discriminators. Note that when True, batchsize must be divisible by ens_multiplier. Defaults to False.'
+    )
+
+    parser.add_argument(
+        '--ens_grad_norm',
+        default=False,
+        type=bool,
+        help='Whether to use Gradient Normalization among Discriminators. Defaults to False.'
+    )
+
+    parser.add_argument(
+        '--save_sample_gradients',
+        default=False,
+        type=bool,
+        help='Whether to save discriminator gradients for fake data. Defaults to False.'
+    )
+
     return parser.parse_args()
 
 
@@ -94,6 +158,25 @@ def main():
         data, discrete_columns = read_tsv(args.data, args.metadata)
     else:
         data, discrete_columns = read_csv(args.data, args.metadata, args.header, args.discrete)
+
+    #load sdv-style metadata
+    with open(args.metadata) as f:
+        metadata = json.load(f)
+
+
+    ## train-test-split
+
+    data = data.sample(frac=1, random_state=161).reset_index(drop=True)
+
+    n_train_samples=round(data.shape[0]*0.8)
+    test_data = data[n_train_samples:]
+    data = data[:n_train_samples]
+
+    if args.add_time_to_exp:
+        file, suffix = path.splitext(args.output)
+        timestamp = str(datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
+        args.output = file + "_" + timestamp + suffix
+    exp_name = path.basename(args.output)
 
     if args.load:
         model = CTGAN.load(args.load)
@@ -110,8 +193,17 @@ def main():
             discriminator_decay=args.discriminator_decay,
             batch_size=args.batch_size,
             epochs=args.epochs,
+            ensemble=args.ensemble,
+            ens_multiplier=args.ens_multiplier,
+            ens_weighting=args.ens_weighting,
+            ens_fixed_weights=args.ens_fixed_weights,
+            ens_split_batch=args.ens_split_batch,
+            ens_grad_norm=args.ens_grad_norm,
+            save_sample_gradients=args.save_sample_gradients,
+            verbose=True,
+            exp_name=exp_name
         )
-    model.fit(data, discrete_columns)
+    model.fit(data, discrete_columns, test_data=test_data, metadata=metadata)
 
     if args.save is not None:
         model.save(args.save)
@@ -125,10 +217,14 @@ def main():
         num_samples, args.sample_condition_column, args.sample_condition_column_value
     )
 
+    out_path = os.path.join("logs", args.output)
+
     if args.tsv:
-        write_tsv(sampled, args.metadata, args.output)
+        out_path = os.path.join(out_path, "data.tsv")
+        write_tsv(sampled, args.metadata, out_path)
     else:
-        sampled.to_csv(args.output, index=False)
+        out_path = os.path.join(out_path, "data.csv")
+        sampled.to_csv(out_path, index=False)
 
 
 if __name__ == '__main__':
