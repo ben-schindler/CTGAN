@@ -4,15 +4,14 @@ channels:
   - conda-forge
   - pytorch
 dependencies:
-  - python==3.10.13
+  - python==3.10
+  - pip
   - pip:
-    - torch>=1.12
-	- numpy
+    - torch==2.2
+    - numpy
     - easydict
     - tqdm
-    - functorch
-	- pandas
-	- wandb
-	- wheel
-	- matplotlib
-prefix: /opt/anaconda3/envs/ctgan
+    - pandas
+    - wandb
+    - wheel
+    - matplotlib
