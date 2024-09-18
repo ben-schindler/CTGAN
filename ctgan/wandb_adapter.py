@@ -7,7 +7,7 @@ import wandb
 class WandBSummarizer():
     def __init__(self, run_name, dir):
         wandb.init(name=run_name,
-                   dir=dir)
+                   project=dir)
 
     def finish(self):
         wandb.finish()
