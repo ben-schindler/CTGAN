@@ -537,7 +537,10 @@ class CTGAN(BaseSynthesizer):
             # Evaluate Generated Dataset #
             ##############################
 
-            pruned_sample_size = (test_data.shape[0] // self.pac) * self.pac
+            if self._ens_split_batch:
+                pruned_sample_size = ((test_data.shape[0] // self._ens_multiplier) // self.pac) * self._ens_multiplier * self.pac
+            else:
+                pruned_sample_size = (test_data.shape[0] // self.pac) * self.pac
             fake_data, cond = self.sample(pruned_sample_size, raw_format=True)
 
             if self._save_sample_gradients and i % 20 == 0:
