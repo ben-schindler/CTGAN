@@ -463,9 +463,16 @@ class CTGAN(BaseSynthesizer):
                         y_fake = current_discriminator(fake_cat)
                         y_real = current_discriminator(real_cat)
 
-                        pen = current_discriminator.calc_gradient_penalty(
-                            real_cat, fake_cat, self._device, self.pac
-                        )
+                        # Hotfix for batchsplitting:
+                        if self._ens_split_batch:
+                            pen = current_discriminator[1].calc_gradient_penalty(
+                                real_cat, fake_cat, self._device, self.pac
+                            )
+                        else:
+                            pen = current_discriminator.calc_gradient_penalty(
+                                real_cat, fake_cat, self._device, self.pac
+                            )
+
                         loss_d = -(torch.mean(y_real) - torch.mean(y_fake))
 
                         optimizerD.zero_grad(set_to_none=False)
