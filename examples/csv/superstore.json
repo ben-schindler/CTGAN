@@ -1,0 +1,92 @@
+{	
+    "columns": [
+        {
+            "name": "Order ID",
+            "type": "categorical"
+        },
+        {
+            "name": "Order Date Month",
+            "type": "categorical"
+        },
+        {
+            "name": "Order Date Day",
+            "type": "categorical"
+        },
+        {
+            "name": "Order Date Year",
+            "type": "categorical"
+        },
+        {
+            "name": "Ship Date Month",
+            "type": "categorical"
+        },
+        {
+            "name": "Ship Date Day",
+            "type": "categorical"
+        },
+        {
+            "name": "Ship Date Year",
+            "type": "categorical"
+        },
+        {
+            "name": "Ship Mode",
+            "type": "categorical"
+        },
+        {
+            "name": "Customer ID",
+            "type": "categorical"
+        },
+        {
+            "name": "Segment",
+            "type": "categorical"
+        },
+        {
+            "name": "Country",
+            "type": "categorical"
+        },
+        {
+            "name": "City",
+            "type": "categorical"
+        },
+        {
+            "name": "State",
+            "type": "categorical"
+        },
+        {
+            "name": "Postal Code",
+            "type": "categorical"
+        },
+        {
+            "name": "Region",
+            "type": "categorical"
+        },
+        {
+            "name": "Product ID",
+            "type": "categorical"
+        },
+        {
+            "name": "Category",
+            "type": "categorical"
+        },
+        {
+            "name": "Sub-Category",
+            "type": "categorical"
+        },
+        {
+            "name": "Sales",
+            "type": "continuous"
+        },
+        {
+            "name": "Quantity",
+            "type": "continuous"
+        },
+        {
+            "name": "Discount",
+            "type": "continuous"
+        },
+        {
+            "name": "Profit",
+            "type": "continuous"
+        }
+    ]
+}

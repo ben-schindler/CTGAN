@@ -90,7 +90,7 @@ class CTGANReporter():
         report = QualityReport()
 
         # this metadata conversion is necessary as CTGAN and sdmetrics use different structure for
-        # there meta-data: #"type": item['type']
+        # their meta-data:
         metadata_converted = {'columns': {item['name']: {"sdtype": item['type']} for item in metadata['columns']}}
         # convert types: continuous -> numerical
         metadata_converted = {'columns': { col: {k: 'numerical' if v == 'continuous' else v

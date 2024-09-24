@@ -105,3 +105,10 @@ ENV/
 
 # Vim
 .*.swp
+
+# tmp data
+examples/csv/orig_superstore/*
+
+#MacOS
+.DS_Store
+*/.DS_Store
