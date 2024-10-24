@@ -1,0 +1,140 @@
+{
+    "columns": [
+        {
+            "name": "Age",
+            "type": "continuous"
+        },
+        {
+            "name": "Number_of_sexual_partners",
+            "type": "continuous"
+        },
+        {
+            "name": "First_sexual_intercourse",
+            "type": "continuous"
+        },
+        {
+            "name": "Num_of_pregnancies",
+            "type": "continuous"
+        },
+        {
+            "name": "Smokes",
+            "type": "categorical"
+        },
+        {
+            "name": "Smokes_years",
+            "type": "continuous"
+        },
+        {
+            "name": "Smokes_packs_year",
+            "type": "continuous"
+        },
+        {
+            "name": "Hormonal_Contraceptives",
+            "type": "categorical"
+        },
+        {
+            "name": "Hormonal_Contraceptives_years",
+            "type": "continuous"
+        },
+        {
+            "name": "IUD",
+            "type": "categorical"
+        },
+        {
+            "name": "IUD_years",
+            "type": "continuous"
+        },
+        {
+            "name": "STDs",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs_number",
+            "type": "continuous"
+        },
+        {
+            "name": "STDs:condylomatosis",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:cervical_condylomatosis",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:vaginal_condylomatosis",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:vulvo-perineal_condylomatosis",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:syphilis",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:pelvic_inflammatory_disease",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:genital_herpes",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:molluscum_contagiosum",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:AIDS",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:HIV",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:Hepatitis_B",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:HPV",
+            "type": "categorical"
+        },
+        {
+            "name": "STDs:_Number_of_diagnosis",
+            "type": "continuous"
+        },
+        {
+            "name": "Dx:Cancer",
+            "type": "categorical"
+        },
+        {
+            "name": "Dx:CIN",
+            "type": "categorical"
+        },
+        {
+            "name": "Dx:HPV",
+            "type": "categorical"
+        },
+        {
+            "name": "Dx",
+            "type": "categorical"
+        },
+        {
+            "name": "Hinselmann",
+            "type": "categorical"
+        },
+        {
+            "name": "Schiller",
+            "type": "categorical"
+        },
+        {
+            "name": "Citology",
+            "type": "categorical"
+        },
+        {
+            "name": "Biopsy",
+            "type": "categorical"
+        }
+    ]
+}
