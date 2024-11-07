@@ -1,0 +1,70 @@
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --job-name=ctgan
+#SBATCH --time=24:00:00
+#SBATCH --mem=20gb
+
+# Check if an argument is provided
+if [ $# -eq 0 ]; then
+    echo "Please provide an ens_multiplier value as an argument."
+    exit 1
+fi
+
+
+
+# ACTIVATE ANACONDA
+module load Anaconda3
+eval "$(conda shell.bash hook)"
+conda activate ctgan
+module unload Anaconda3
+
+## ADULTS ## 
+# Define shell variables for config, input CSV paths, epochs, and ens_multiplier
+META="./examples/csv/adult.json"
+INPUT_CSV="./examples/csv/adult.csv"
+EPOCHS=500
+ENS_MULTIPLIER=$1
+
+# run equal weighting
+#srun python -m ctgan -m $META -e $EPOCHS --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --save_sample_gradients True $INPUT_CSV ${ENS_MULTIPLIER}ew
+
+# run rand_bernoulli
+#srun python -m ctgan -m $META -e $EPOCHS --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --ens_weighting rand_bernoulli --save_sample_gradients True $INPUT_CSV ${ENS_MULTIPLIER}rand_bernoulli
+
+
+## SUPERSTORE
+META="./examples/csv/superstore.json"
+INPUT_CSV="./examples/csv/superstore.csv"
+EPOCHS=200
+
+# run equal weighting
+srun python -m ctgan -m $META -e $EPOCHS --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --save_sample_gradients True $INPUT_CSV superstore_${ENS_MULTIPLIER}ew
+
+# run rand_bernoulli
+#srun python -m ctgan -m $META -e $EPOCHS --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --ens_weighting rand_bernoulli --save_sample_gradients True $INPUT_CSV superstore_${ENS_MULTIPLIER}rand_bernoulli
+
+
+## CANCER
+META="./examples/csv/cancer.json"
+INPUT_CSV="./examples/csv/cancer.csv"
+EPOCHS=500
+
+# run equal weighting
+#srun python -m ctgan -m $META -e $EPOCHS --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --save_sample_gradients True $INPUT_CSV cancer_${ENS_MULTIPLIER}ew
+
+# run rand_bernoulli
+#srun python -m ctgan -m $META -e $EPOCHS --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --ens_weighting rand_bernoulli --save_sample_gradients True $INPUT_CSV cancer_${ENS_MULTIPLIER}rand_bernoulli
+
+
+## CANCER - batchsize 100
+META="./examples/csv/cancer.json"
+INPUT_CSV="./examples/csv/cancer.csv"
+EPOCHS=500
+
+# run equal weighting
+#srun python -m ctgan -m $META -e $EPOCHS --batch_size 100 --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --save_sample_gradients True $INPUT_CSV cancer_${ENS_MULTIPLIER}ew_bs100
+
+# run rand_bernoulli
+#srun python -m ctgan -m $META -e $EPOCHS --batch_size 100 --ensemble True --add_time_to_exp --ens_multiplier $ENS_MULTIPLIER --ens_weighting rand_bernoulli --save_sample_gradients True $INPUT_CSV cancer_${ENS_MULTIPLIER}rand_bernoulli_bs100

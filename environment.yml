@@ -15,3 +15,6 @@ dependencies:
     - wandb
     - wheel
     - matplotlib
+    - rdt
+    - sdmetrics
+    - torchinfo
